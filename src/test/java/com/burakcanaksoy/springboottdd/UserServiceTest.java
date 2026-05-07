@@ -42,7 +42,7 @@ class UserServiceTest {
     // =========================================================
 
     @Test
-    @DisplayName("assertEquals: Kullanici adi dogru set edilmeli")
+    @DisplayName("assertEquals: Kullanici adi ve kullanici yası dogru set edilmeli")
     void assertEquals_userName() {
         User user = userService.createUser("Burak", "burak@mail.com", 25);
 
@@ -88,9 +88,9 @@ class UserServiceTest {
         User user = userService.createUser("Burak", "burak@mail.com", 25);
         userService.deactiveUser(user.getId());
 
-        User deactivated = userService.findById(user.getId());
+        User deactivatedUser = userService.findById(user.getId());
 
-        assertFalse(deactivated.isActive(),
+        assertFalse(deactivatedUser.isActive(),
                 "Deaktif edilen kullanici aktif olmamali");
     }
 
@@ -179,7 +179,7 @@ class UserServiceTest {
     // =========================================================
 
     @Test
-    @DisplayName("assertDoesNotThrow: Gecerli veri ile kullanici olusturma exception firlat MAZ")
+    @DisplayName("assertDoesNotThrow: Gecerli veri ile kullanici olusturma exception firlatmaz")
     void assertDoesNotThrow_validUser() {
         assertDoesNotThrow(
                 () -> userService.createUser("Burak", "burak@mail.com", 25),
@@ -277,12 +277,10 @@ class UserServiceTest {
         @DisplayName("Silinen kullanici findById ile bulunamaz")
         void deletedUser_notFoundById() {
             User user = userService.createUser("Burak", "burak@mail.com", 25);
-            Long id = user.getId();
-
-            userService.deleteUser(id);
+            userService.deleteUser(user.getId());
 
             assertThrows(UserNotFoundException.class,
-                    () -> userService.findById(id));
+                    () -> userService.findById(user.getId()));
         }
 
         @Test
