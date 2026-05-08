@@ -1,4 +1,4 @@
-package com.burakcanaksoy.springboottdd;
+package com.burakcanaksoy.springboottdd.user;
 
 
 import org.junit.jupiter.api.*;
