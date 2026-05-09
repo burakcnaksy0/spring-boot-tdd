@@ -4,14 +4,21 @@ Bu proje, Spring Boot ortamında **Test Driven Development (TDD)** prensiplerini
 
 ## Proje İçeriği
 
-Proje, basit bir kullanıcı yönetim sistemini simüle eder:
-- **`User.java`**: Kullanıcı bilgilerini (`id`, `name`, `email`, `age`, `active`) tutan model sınıfı. (Lombok kullanılmıştır).
-- **`UserService.java`**: In-memory (bellek içi) bir liste üzerinde kullanıcı oluşturma, silme, deaktif etme ve bulma işlemlerini yürüten servis katmanı.
-- **`UserServiceTest.java`**: JUnit 5 kullanılarak servisin çeşitli metodlarını test eden ve tüm önemli assertion metotlarını örneklendiren test sınıfı.
+Proje, basit bir in-memory (bellek içi) veri yönetimi (Kullanıcı ve Ürün) sistemini simüle eder:
+
+### Kullanıcı Yönetimi
+- **`User.java`**: Kullanıcı bilgilerini (`id`, `name`, `email`, `age`, `active`) tutan model sınıfı.
+- **`UserService.java`**: Kullanıcı oluşturma, silme, deaktif etme ve bulma işlemlerini yürüten servis katmanı.
+- **`UserServiceTest.java`**: JUnit 5 kullanılarak servisin çeşitli metodlarını test eden test sınıfı.
+
+### Ürün Yönetimi
+- **`Product.java`**: Ürün bilgilerini (`id`, `name`, `categoryName`, `price`, `numberOfStock`, `description`, `active`) tutan model sınıfı.
+- **`ProductService.java`**: Kategori bazlı filtreleme, aktif/pasif ürünleri getirme, ürün ekleme ve silme işlemlerini yürüten servis katmanı.
+- **`ProductServiceTest.java`**: TDD süreçlerine uygun olarak `TEST_CHECKLIST.md` içindeki tüm senaryoları kapsayan kapsamlı test sınıfı.
 
 ## JUnit 5 Assertions (Doğrulamalar)
 
-`UserServiceTest` sınıfı içinde aşağıdaki JUnit 5 assertion metotlarının kullanımı detaylıca örneklendirilmiştir:
+`UserServiceTest` ve `ProductServiceTest` sınıfları içinde aşağıdaki JUnit 5 assertion metotlarının kullanımı detaylıca örneklendirilmiştir:
 
 ### 1. Eşitlik Kontrolleri (`assertEquals` / `assertNotEquals`)
 - **`assertEquals(expected, actual, message)`**: Beklenen değerin gerçek değere eşit olup olmadığını kontrol eder.
