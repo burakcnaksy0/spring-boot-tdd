@@ -43,7 +43,7 @@ class ProductServiceTest {
         
         // Using hasFieldOrPropertyWithValue
         assertThat(product).hasFieldOrPropertyWithValue("categoryName", category);
-        assertThat(product).hasFieldOrPropertyWithValue("stock", stock);
+        assertThat(product).hasFieldOrPropertyWithValue("numberOfStock", stock);
     }
 
     @Test
