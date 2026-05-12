@@ -5,14 +5,11 @@ import java.util.*;
 
 @Configuration
 public class UserMapper {
-    private static long counter = 1;
-
     public User toEntity(UserRequest request){
         if (request == null){
             return null;
         }
         return User.builder()
-                .id(counter++)
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .username(request.getUsername())
