@@ -5,7 +5,7 @@ import java.util.*;
 
 @Configuration
 public class UserMapper {
-    public User toEntity(UserRequest request){
+    public User toEntity(UserCreateRequest request){
         if (request == null){
             return null;
         }

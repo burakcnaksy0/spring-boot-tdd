@@ -18,7 +18,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
     UserResponse response;
-    UserRequest request;
+    UserCreateRequest request;
     User user;
 
     @Mock
@@ -43,7 +43,7 @@ class UserServiceTest {
                 .active(true)
                 .build();
 
-        request = UserRequest.builder()
+        request = UserCreateRequest.builder()
                 .firstName("Burak")
                 .lastName("Can")
                 .username("burakcan")
@@ -103,6 +103,8 @@ class UserServiceTest {
     @Test
     void createUser_ShouldReturnUserResponse() {
         // Arrange
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(userRepository.existsByPhone(request.getPhone())).thenReturn(false);
         when(userMapper.toEntity(request)).thenReturn(user);
         when(userRepository.save(user)).thenReturn(user);
         when(userMapper.toResponse(user)).thenReturn(response);
@@ -114,9 +116,42 @@ class UserServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getUsername()).isEqualTo(response.getUsername());
 
+        verify(userRepository, times(1)).existsByEmail(request.getEmail());
+        verify(userRepository, times(1)).existsByPhone(request.getPhone());
         verify(userMapper, times(1)).toEntity(request);
         verify(userRepository, times(1)).save(user);
         verify(userMapper, times(1)).toResponse(user);
+    }
+
+    @Test
+    void createUser_WhenEmailExists_ShouldThrowUserAlreadyExistsException() {
+        // Arrange
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
+
+        // Act & Assert
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessage("Email already exists");
+
+        verify(userRepository, times(1)).existsByEmail(request.getEmail());
+        verify(userRepository, never()).existsByPhone(anyString());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createUser_WhenPhoneExists_ShouldThrowUserAlreadyExistsException() {
+        // Arrange
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(userRepository.existsByPhone(request.getPhone())).thenReturn(true);
+
+        // Act & Assert
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessage("Phone already exists");
+
+        verify(userRepository, times(1)).existsByEmail(request.getEmail());
+        verify(userRepository, times(1)).existsByPhone(request.getPhone());
+        verify(userRepository, never()).save(any());
     }
 
     @Test

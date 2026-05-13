@@ -1,10 +1,6 @@
 package com.burakcanaksoy.springboottdd.user;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,7 +19,9 @@ public class User {
     private String firstName;
     private String lastName;
     private String username;
+    @Column(unique = true, nullable = false)
     private String email;
+    @Column(unique = true, nullable = false)
     private String phone;
     private int age;
     private boolean active;

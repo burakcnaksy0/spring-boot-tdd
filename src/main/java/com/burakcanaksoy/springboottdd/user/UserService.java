@@ -17,7 +17,14 @@ public class UserService {
         return userMapper.toResponse(user);
     }
 
-    public UserResponse createUser(UserRequest request) {
+    public UserResponse createUser(UserCreateRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new UserAlreadyExistsException("Email already exists");
+        }
+
+        if (userRepository.existsByPhone(request.getPhone())) {
+            throw new UserAlreadyExistsException("Phone already exists");
+        }
         User user = userMapper.toEntity(request);
         userRepository.save(user);
         return userMapper.toResponse(user);
