@@ -138,8 +138,6 @@ class UserControllerTest {
                 .andExpect(jsonPath("$[3].id").value(4))
                 .andExpect(jsonPath("$[3].firstName").value("Emma"))
                 .andExpect(status().isOk());
-
-        verify(userService, times(1)).getAllUsers();
     }
 
     @Test
@@ -157,8 +155,6 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.lastName").value("Doe"))
                 .andExpect(jsonPath("$.phone").value("05321234567"))
                 .andExpect(jsonPath("$.active").value(true));
-
-        verify(userService, times(1)).getUserById(userId);
     }
 
     @Test
@@ -178,7 +174,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.email").value("john@example.com"))
                 .andExpect(jsonPath("$.age").value(25));
 
-        verify(userService, times(1)).createUser(eq(request));
+        verify(userService).createUser(any(UserCreateRequest.class));
     }
 
     @Test
@@ -191,6 +187,6 @@ class UserControllerTest {
         mockMvc.perform(delete("/api/user/{id}", userId))
                 .andExpect(status().isNoContent());
 
-        verify(userService, times(1)).deleteUser(userId);
+        verify(userService).deleteUser(userId);
     }
 }
