@@ -7,69 +7,70 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
+
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
+@ActiveProfiles("test")
 public class UserApplicationIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> psql = new PostgreSQLContainer<>("postgres:14.23")
-            .withDatabaseName("test_db")
-            .withUsername("test_user")
-            .withPassword("test_password");
-
-    @Autowired
-    private TestRestTemplate testRestTemplate;
-
-    @Autowired
-    private UserRepository userRepository;
 
     @LocalServerPort
     private int port;
 
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry dynamicPropertyRegistry){
-        dynamicPropertyRegistry.add("spring.datasource.url",psql::getJdbcUrl);
-        dynamicPropertyRegistry.add("spring.datasource.username",psql::getUsername);
-        dynamicPropertyRegistry.add("spring.datasource.password",psql::getPassword);
-        dynamicPropertyRegistry.add("spring.datasource.driver-class-name",() -> "org.postgresql.Driver");
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    @Sql(scripts = "/setup-test-users.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+    @Sql(scripts = "/cleanup-test-users.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    void shouldGetUserById_whenUserExists() {
+        // given - @Sql annotation already inserted user with id 1
+        String url = "http://localhost:" + port + "/api/user/1";
+
+        // when
+        ResponseEntity<UserResponse> response = restTemplate.getForEntity(url, UserResponse.class);
+
+        // then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getId()).isEqualTo(1L);
+        assertThat(response.getBody().getUsername()).isEqualTo("testuser");
+        assertThat(response.getBody().getEmail()).isEqualTo("testuser@gmail.com");
     }
 
     @Test
-    void shouldConnectToRealPostgreSqlDatabase(){
-        assertTrue(psql.isRunning());
+    @Sql(scripts = "/cleanup-test-users.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    void shouldCreateUser_andSaveToDatabase() {
         // given
         UserCreateRequest request = UserCreateRequest.builder()
-                .firstName("burakcan")
-                .lastName("aksoy")
-                .username("burakcnaksy")
-                .email("aksoyburak808@gmail.com")
-                .phone("05350482740")
-                .age(24)
+                .firstName("John")
+                .lastName("Doe")
+                .username("johndoe")
+                .email("john.doe@test.com")
+                .phone("05359702361")
+                .age(25)
                 .build();
+        
+        String url = "http://localhost:" + port + "/api/user";
 
         // when
-        ResponseEntity<UserResponse> response = testRestTemplate.postForEntity(
-                "http://localhost:"+port+"/api/user",
-                request,
-                UserResponse.class
-        );
+        ResponseEntity<UserResponse> response = restTemplate.postForEntity(url, request, UserResponse.class);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getId()).isNotNull();
+        assertThat(response.getBody().getUsername()).isEqualTo("johndoe");
 
-        Optional<User> savedUser = userRepository.findById(response.getBody().getId());
-        assertThat(savedUser).isPresent();
+        // Verify it was actually saved in the database
+        Optional<User> foundUser = userRepository.findById(response.getBody().getId());
+        assertThat(foundUser).isPresent();
     }
-
 }
