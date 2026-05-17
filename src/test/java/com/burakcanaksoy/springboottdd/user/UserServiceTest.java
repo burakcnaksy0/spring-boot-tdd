@@ -95,7 +95,7 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.getUserById(1L))
                 .isInstanceOf(UserNotFoundException.class)
                 .hasMessage("User not found with id: 1");
-        
+
         verify(userRepository, times(1)).findById(1L);
         verify(userMapper, never()).toResponse(any());
     }
@@ -117,7 +117,7 @@ class UserServiceTest {
         assertThat(result.getUsername()).isEqualTo(response.getUsername());
 
         // userRepository.save metodu ile kaydedilen veriyi kontrol ediyoruz
-        verify(userRepository,times(1)).save(userCaptor.capture());
+        verify(userRepository, times(1)).save(userCaptor.capture());
         // yakalanan user verisini assertion ile kontrol ediyoruz
         User savedUser = userCaptor.getValue();
         assertThat(savedUser).isNotNull();

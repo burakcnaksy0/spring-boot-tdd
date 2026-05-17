@@ -17,4 +17,59 @@ Bu branch'in odak noktası, Service katmanındaki iş kurallarının (Business L
 4. **Metot Çağrılarının Doğrulanması (Verification):**
    - `verify(...)` kullanarak bağımlılıklardaki bir metodun doğru parametrelerle ve doğru sayıda çağrılıp çağrılmadığının kontrol edilmesi.
 
+5. **`@Captor` ve `ArgumentCaptor` Kullanımı (Argüman Yakalama):**
+   - Bir metodun parametresi olarak gönderilen nesneleri havada yakalayarak içindeki alanları detaylıca test etmek.
+   - Test edilen metodun içinde dinamik olarak oluşturulan nesnelerin doğruluğunu denetlemek.
+
+---
+
+##  `@Captor` ve `ArgumentCaptor` Detaylı İncelemesi
+
+Birim testlerinde bazı durumlarda sadece metotların çağrıldığını doğrulamak (`verify`) yetmez; çağrı sırasında iletilen nesnelerin içeriklerini de doğrulamak gerekir. İşte bu noktada **`ArgumentCaptor`** devreye girer.
+
+### 💡 Temel Mantık: Ne Zaman ve Nerede Kullanılmalı?
+
+`ArgumentCaptor`, test edilen metodun **içinde dinamik olarak oluşturulan (mapped)** veya **değişikliğe (mutasyon) uğrayan** nesneleri yakalamak için biçilmiş kaftandır.
+
+| Durum | Tercih Edilen Yaklaşım | Örnek |
+| :--- | :--- | :--- |
+| **Metot içinde üretilen nesneler** (örn: mapper sonrası) | `ArgumentCaptor` ile yakala ve assert et 🌟 | `userRepository.save(userCaptor.capture())` |
+| **Metot içinde alanı değişen nesneler** (örn: şifre şifreleme) | `ArgumentCaptor` ile yakala ve assert et 🌟 | `userRepository.save(userCaptor.capture())` |
+| **Dışarıdan gelen ve değişmeyen nesneler** | Doğrudan referans ile `verify` et | `userMapper.toEntity(request)` |
+| **Basit / İlkel parametreler** (`String`, `Long` vb.) | Doğrudan değerle `verify` et | `userRepository.existsByEmail("email@email.com")` |
+
+---
+
+### 🛠️ Kullanım Örneği
+
+#### 1. Sınıf Seviyesinde Tanımlama
+Sınıfın en üstüne `@Captor` anotasyonu ile eklenir:
+```java
+@Captor
+private ArgumentCaptor<User> userCaptor;
+```
+
+#### 2. Test Metodu İçinde Kullanımı (Arrange-Act-Assert Akışı)
+Testler her zaman **AAA (Arrange-Act-Assert)** sırasına uymalıdır. `verify` ve `capture` işlemleri **sadece Act (Eylem) aşamasından sonra** yapılabilir.
+
+```java
+@Test
+void createUser_ShouldReturnUserResponse() {
+    // 1. Arrange (Hazırlık)
+    when(userRepository.save(any(User.class))).thenReturn(user);
+
+    // 2. Act (Eylem)
+    UserResponse result = userService.createUser(request);
+
+    // 3. Assert & Verify (Doğrulama)
+    // userRepository.save() metoduna giden nesneyi yakalıyoruz
+    verify(userRepository, times(1)).save(userCaptor.capture());
+    
+    // Yakalanan nesneyi alıp içindeki alanları assert ediyoruz
+    User savedUser = userCaptor.getValue();
+    assertThat(savedUser.getEmail()).isEqualTo(request.getEmail());
+    assertThat(savedUser.getFirstName()).isEqualTo(request.getFirstName());
+}
+```
+
 > 💡 **İpucu:** Diğer test aşamalarını ve branch'leri incelemek için `master` branch'indeki ana README.md dosyasına göz atabilirsiniz.
