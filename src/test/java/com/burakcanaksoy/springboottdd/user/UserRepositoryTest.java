@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /*
 otomatik olarak bir test işlemi sırasında transactional
@@ -51,6 +52,12 @@ class UserRepositoryTest {
 
         assertThat(user).isPresent();
         assertThat(user.get().getUsername()).isEqualTo("mertceylan");
+    }
+
+    @Test
+    void findById_ShouldNotReturnUser(){
+        Optional<User> user = userRepository.findById(999L);
+        assertThat(user).isEmpty();
     }
 
     @Test
