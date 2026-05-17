@@ -18,13 +18,9 @@ public class UserService {
     }
 
     public UserResponse createUser(UserCreateRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new UserAlreadyExistsException("Email already exists");
-        }
+        checkEmailExists(request.getEmail());
+        checkPhoneExists(request.getPhone());
 
-        if (userRepository.existsByPhone(request.getPhone())) {
-            throw new UserAlreadyExistsException("Phone already exists");
-        }
         User user = userMapper.toEntity(request);
         userRepository.save(user);
         return userMapper.toResponse(user);
@@ -39,5 +35,17 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
         userRepository.delete(user);
+    }
+
+    private void checkEmailExists(String email){
+        if (userRepository.existsByEmail(email)){
+            throw new UserAlreadyExistsException("User already exists with email : "+ email);
+        }
+    }
+
+    private void checkPhoneExists(String phone){
+        if (userRepository.existsByPhone(phone)){
+            throw new UserAlreadyExistsException("User already exists with email : "+ phone);
+        }
     }
 }
