@@ -1,9 +1,10 @@
 package com.burakcanaksoy.springboottdd.user;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,13 +23,16 @@ class UserServiceTest {
     User user;
 
     @Mock
-    UserRepository userRepository;
+    private UserRepository userRepository;
 
     @Mock
-    UserMapper userMapper;
+    private UserMapper userMapper;
 
     @InjectMocks
-    UserService userService;
+    private UserService userService;
+
+    @Captor
+    private ArgumentCaptor<User> userCaptor;
 
     @BeforeEach
     void setUp() {
@@ -62,10 +66,6 @@ class UserServiceTest {
                 .age(25)
                 .active(true)
                 .build();
-    }
-
-    @AfterEach
-    void tearDown() {
     }
 
     @Test
@@ -116,10 +116,22 @@ class UserServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getUsername()).isEqualTo(response.getUsername());
 
+        // userRepository.save metodu ile kaydedilen veriyi kontrol ediyoruz
+        verify(userRepository,times(1)).save(userCaptor.capture());
+        // yakalanan user verisini assertion ile kontrol ediyoruz
+        User savedUser = userCaptor.getValue();
+        assertThat(savedUser).isNotNull();
+        assertThat(savedUser.getEmail()).isEqualTo(request.getEmail());
+        assertThat(savedUser.getPhone()).isEqualTo(request.getPhone());
+        assertThat(savedUser.getAge()).isEqualTo(request.getAge());
+        assertThat(savedUser.getFirstName()).isEqualTo(request.getFirstName());
+        assertThat(savedUser.getLastName()).isEqualTo(request.getLastName());
+        assertThat(savedUser.getUsername()).isEqualTo(request.getUsername());
+
+        // doğru kullanım
         verify(userRepository, times(1)).existsByEmail(request.getEmail());
         verify(userRepository, times(1)).existsByPhone(request.getPhone());
         verify(userMapper, times(1)).toEntity(request);
-        verify(userRepository, times(1)).save(user);
         verify(userMapper, times(1)).toResponse(user);
     }
 
