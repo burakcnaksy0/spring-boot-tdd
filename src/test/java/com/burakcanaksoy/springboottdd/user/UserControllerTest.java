@@ -24,6 +24,15 @@ class UserControllerTest {
     UserResponse response, response2, response3, response4;
     UserCreateRequest request, request2, request3, request4;
 
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private UserService userService;
+
     @BeforeEach
     void setUp() {
         request = UserCreateRequest.builder()
@@ -109,15 +118,6 @@ class UserControllerTest {
                 .build();
     }
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockitoBean
-    private UserService userService;
-
     @Test
     void shouldReturnAllUsers() throws Exception {
         // Arrange
@@ -164,6 +164,7 @@ class UserControllerTest {
 
         // Act & Assert
         mockMvc.perform(post("/api/user")
+                        .accept(MediaType.APPLICATION_JSON)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
