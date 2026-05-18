@@ -1,5 +1,8 @@
 package com.burakcanaksoy.springboottdd.user;
 
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Ports;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -14,7 +17,11 @@ public abstract class BaseContainerTest {
         POSTGRES_CONTAINER = new PostgreSQLContainer<>("postgres:14.23")
                 .withDatabaseName("test_db")
                 .withUsername("test_user")
-                .withPassword("test_password");
+                .withPassword("test_password")
+                .withCreateContainerCmdModifier(cmd -> cmd.getHostConfig().withPortBindings(
+                        new PortBinding(Ports.Binding.bindPort(15432), new ExposedPort(5432))
+                ))
+                .withReuse(true);
         POSTGRES_CONTAINER.start();
     }
 

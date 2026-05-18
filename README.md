@@ -1,33 +1,110 @@
-# Spring Boot Temel ve İleri Seviye Test Kavramları (spring-boot-test Branch)
+# Spring Boot Entegrasyon ve Konteyner Testleri (spring-boot-test Branch) 🚀
 
-Bu branch, Spring Boot uygulamanızda test yazmaya giriş ve ileri seviye entegrasyon testleri için hazırlanmıştır. Spring Boot'un sunduğu güçlü test altyapısının (H2 in-memory DB ve Testcontainers) genel bir resmini bu branch'te bulabilirsiniz.
+Bu branch, Spring Boot uygulamanızda test piramidinin en tepesinde yer alan **Uçtan Uca (E2E) Entegrasyon Testleri** ve **Konteyner Mimarisi** için hazırlanmıştır. Gerçek bir üretim (production) ortamını simüle etmek amacıyla **REST-Assured**, **Docker Testcontainers (PostgreSQL)** ve gelişmiş yerel test optimizasyonları kullanılmıştır.
 
-## Bu Branch'te Öğrenilecek ve Uygulanacak Konular:
+---
 
-### 1. Spring Context Yüklenmesi (`@SpringBootTest`)
-   - `@SpringBootTest` anotasyonunun nasıl çalıştığı.
-   - Uygulama context'inin (bağımlılıkların ve bean'lerin) test ortamı için nasıl tamamen ayağa kaldırıldığı.
-   - `webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT` kullanımı ile çakışmaların önlenmesi ve gerçek bir web sunucusu (Tomcat) simülasyonu.
+## 🛠️ Bu Branch'te Neler Öğreneceksiniz?
 
-### 2. Uygulamanın Ayakta Olduğunun Doğrulanması
-   - Spring context'inin başarıyla yüklendiğini doğrulayan basit "Context Loads" (Smoke) testi.
-   - Component Injection (`@Autowired`) ile ayağa kalkan bean'lerin test sınıflarına enjekte edilmesi.
+### 1. REST-Assured ile BDD Tarzı API Doğrulama
+* **Given-When-Then** DSL (Domain Specific Language) yapısı ile insan dili gibi okunabilen API testleri yazımı.
+* JSON Path sorguları ve Hamcrest Matcher kütüphaneleri ile akıcı (fluent) gövde ve durum kodu doğrulamaları.
+* İstek gövdelerinde raw JSON String'ler yerine tip güvenliği (Type-safety) sağlayan **Lombok Builder** ve otomatik **Jackson Serialization** kullanımı.
 
-### 3. H2 In-Memory Veritabanı ve Profil Yönetimi
-   - Testler çalışırken ana veritabanından bağımsız olarak `application-test.properties` gibi test ortamına özel yapılandırma dosyalarının kullanımı (`@ActiveProfiles("test")`).
-   - Uçtan uca HTTP testleri için `TestRestTemplate` kullanımı.
+### 2. Testcontainers ile Gerçek PostgreSQL Mimarisi
+* H2 gibi in-memory veritabanlarının kısıtlamalarından kurtulup, Docker üzerinde gerçek **PostgreSQL 14** ayağa kaldırma.
+* **Singleton Container Pattern (`BaseContainerTest`):** Her test sınıfı için ayrı konteyner başlatma maliyetini önleyerek, tüm test paketi için tek bir `static` konteyner paylaşımı.
+* `@DynamicPropertySource` anotasyonu ile konteynerın dinamik port ve bağlantı bilgilerinin Spring Boot'a çalışma zamanında (runtime) aktarılması.
 
-### 4. `@Sql` ile Test Verisi Yönetimi
-   - `@Sql` anotasyonu sayesinde testlerden önce (`executionPhase = BEFORE_TEST_METHOD`) `setup-test-users.sql` çalıştırılarak hazır verilerin eklenmesi.
-   - Testlerden sonra (`executionPhase = AFTER_TEST_METHOD`) `cleanup-test-users.sql` çalıştırılarak veritabanı state'inin sıfırlanması.
+### 3. Gelişmiş Yerel Test Hızlandırma & DataGrip Entegrasyonu (Reuse)
+* **Konteyner Yeniden Kullanımı (`withReuse(true)`):** Testler bittiğinde veritabanının yok edilmesini önleyerek bir sonraki çalıştırmada milisaniyeler içinde başlamasını sağlama.
+* **Ryuk Temizleyicisini Kapatma (`ryuk.disabled=true`):** JVM kapandığında veritabanının kapatılmasını önleme ve böylece testler açık olmasa bile **DataGrip** gibi araçlarla veritabanına bağlanabilme.
+* Konteynerı yerel makinede sabit bir porta (**`15432`**) eşleme (port binding).
 
-### 5. Testcontainers ile Gerçek Veritabanı (PostgreSQL) Entegrasyonu
-   - H2 (In-memory) yerine tamamen gerçek bir PostgreSQL veritabanını Docker üzerinde ayağa kaldıran **Testcontainers** kütüphanesinin kullanımı (`UserApplicationContainerTest`).
-   - `@DynamicPropertySource` ile rastgele port alan Docker container'ının bağlantı bilgilerinin Spring Boot'a (properties içine) anlık olarak (runtime'da) ezilerek verilmesi.
+### 4. Sağlam (Robust) Test Stratejileri
+* **Dinamik ID Yönetimi:** Veritabanındaki sayaçların (sequences) değişmesinden etkilenmeyen dinamik ID ve hata mesajı doğrulamaları.
+* **Veri İzolasyonu:** Her testten önce `@BeforeEach` içinde `userRepository.deleteAll()` yardımıyla temiz bir veritabanı durumu sağlama.
+* **Negatif & Validasyon Testleri:** `@Valid` anotasyon kısıtlamalarını (`@NotBlank`, `@Min`, vb.) test eden ve hata yönetimi `validationErrors` eşleşmelerini doğrulayan negatif akış testleri.
 
-### 6. Singleton Container Mimarisi (Optimizasyon)
-   - Test sürelerini kısaltmak ve kaynak israfını önlemek amacıyla **`BaseContainerTest`** adında abstract bir sınıf oluşturulması.
-   - Veritabanı (Postgres) container'ının sadece bir kez `static` blok içerisinde ayağa kaldırılıp tüm test sınıflarında paylaşılması (Singleton Pattern).
-   - Veri izolasyonunu sağlamak için `@AfterEach` içerisinde repoların temizlenmesi (`userRepository.deleteAll()`).
+---
 
-> 💡 **İpucu:** Diğer test aşamalarını ve branch'leri incelemek için `master` branch'indeki ana README.md dosyasına göz atabilirsiniz.
+## 💻 Entegrasyon Testi Yapısı
+
+### 1. Singleton Konteyner & Sabit Port Yapılandırması (`BaseContainerTest.java`)
+[BaseContainerTest.java](file:///home/burakcan/Desktop/backend-roadmap/spring-boot-tdd/src/test/java/com/burakcanaksoy/springboottdd/user/BaseContainerTest.java) sınıfı, Testcontainers bağımlılığını yönetir:
+
+```java
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public abstract class BaseContainerTest {
+    static final PostgreSQLContainer<?> POSTGRES_CONTAINER;
+
+    static {
+        POSTGRES_CONTAINER = new PostgreSQLContainer<>("postgres:14.23")
+                .withDatabaseName("test_db")
+                .withUsername("test_user")
+                .withPassword("test_password")
+                .withCreateContainerCmdModifier(cmd -> cmd.getHostConfig().withPortBindings(
+                        new PortBinding(Ports.Binding.bindPort(15432), new ExposedPort(5432))
+                ))
+                .withReuse(true);
+        POSTGRES_CONTAINER.start();
+    }
+    // ... @DynamicPropertySource yapılandırması
+}
+```
+
+### 2. REST-Assured ile API Test Sınıfı (`UserControllerTest.java`)
+[UserControllerTest.java](file:///home/burakcan/Desktop/backend-roadmap/spring-boot-tdd/src/test/java/com/burakcanaksoy/springboottdd/user/UserControllerTest.java) sınıfında hem Happy-Path hem de olumsuz durumları test eden kurumsal seviye testler yer alır:
+
+```java
+@Test
+void shouldAddNewUser() {
+    UserCreateRequest newUserRequest = UserCreateRequest.builder()
+            .firstName("Zeynep").lastName("Kara").username("zeynepkara")
+            .email("zeynep@test.com").phone("05071234567").age(31).build();
+
+    given()
+            .contentType(ContentType.JSON)
+            .body(newUserRequest)
+            .when()
+            .post("/api/user")
+            .then()
+            .statusCode(201)
+            .body("firstName", equalTo("Zeynep"));
+}
+
+@Test
+void shouldNotCreateUserWhenValidationFails() {
+    UserCreateRequest invalidRequest = UserCreateRequest.builder()
+            .firstName("").username("zk").email("invalid-email").phone("123").age(15).build();
+
+    given()
+            .contentType(ContentType.JSON)
+            .body(invalidRequest)
+            .when()
+            .post("/api/user")
+            .then()
+            .statusCode(400)
+            .body("message", equalTo("Validation failed"))
+            .body("validationErrors", hasKey("firstName"))
+            .body("validationErrors", hasKey("username"));
+}
+```
+
+---
+
+## ⚡ Yerel Makinede Çalıştırma ve Veritabanına Bağlanma
+
+1. Bilgisayarınızda Docker'ın çalıştığından emin olun.
+2. Projeyi maven wrapper ile test edin:
+   ```bash
+   ./mvnw test
+   ```
+3. Test bittikten sonra bile veritabanına DataGrip üzerinden şu bilgilerle anında bağlanın:
+   * **Host:** `localhost`
+   * **Port:** `15432`
+   * **Database:** `test_db`
+   * **User:** `test_user`
+   * **Password:** `test_password`
+
+> 💡 **Not:** Diğer test aşamalarını ve projenin genel ilerleyişini incelemek için `master` branch'indeki ana README.md dosyasına ve tüm test aşamalarını sıfırdan anlatan [BLOG.md](file:///home/burakcan/Desktop/backend-roadmap/spring-boot-tdd/BLOG.md) dosyasına göz atabilirsiniz.

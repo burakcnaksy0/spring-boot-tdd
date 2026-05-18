@@ -1053,28 +1053,23 @@ class UserRepositoryTest {
 
 > **`testEntityManager.clear()` neden gereklidir?**
 >
-> Hibernate bir `first-level cache` (persistence context) tutar. `@Modifying` ile bir UPDATE ya da DELETE yaptıktan sonra aynı transaction içinde `findById` çağırırsanız, Hibernate veritabanına gitmez ve önbellekteki (eski) nesneyi döner. `testEntityManager.clear()` bu önbelleği temizler ve Hibernate'i veritabanından taze veri okumaya zorlar.
+> Hibernate bir `first-level cache` (persistence context) tutar. `@Modifying` ile bir UPDATE ya da DELETE yaptıktan sonra aynı transaction içinde `findById` çağırırsanız, Hi## Branch 7 — `spring-boot-test`: Entegrasyon ve Konteyner Testleri 🚀
 
-| `TestEntityManager` Metodu | Açıklama |
-|---|---|
-| `persist(entity)` | Entity'yi persistence context'e ekler |
-| `persistAndFlush(entity)` | Ekler ve anında DB'ye yazar |
-| `flush()` | Bekleyen tüm değişiklikleri DB'ye yazar |
-| `clear()` | Persistence context önbelleğini temizler |
-| `find(Class, id)` | DB'den taze okuma yapar |
-## Branch 7 — `spring-boot-test`: Entegrasyon Testleri
+Bu branch, test piramidinin en üst noktasıdır. Gerçek (veya gerçeğe yakın) bir ortamda tüm katmanların (Controller, Service, Repository, Database, Web Server) birlikte doğru çalıştığını uçtan uca doğrularız. 
 
-Bu branch, test piramidinin en üst noktasıdır. Gerçek (veya gerçeğe yakın) bir ortamda tüm katmanların birlikte doğru çalıştığını test eder. İki farklı yaklaşım uygulanmıştır:
-
-1. **`UserApplicationIntegrationTest`** — H2 in-memory ile `@Sql` kullanımı
-2. **`UserApplicationContainerTest`** — Testcontainers ile gerçek PostgreSQL
+Bu katmanda **üç farklı yaklaşım ve ileri seviye optimizasyon teknikleri** uygulanmıştır:
+1. **`UserApplicationIntegrationTest`** — H2 in-memory veritabanı ve `@Sql` kullanımı (`TestRestTemplate` ile).
+2. **`UserApplicationContainerTest`** — Docker üzerinde Testcontainers (PostgreSQL) kullanımı (`TestRestTemplate` ile).
+3. **`UserControllerTest`** — REST-Assured, Entegre Testcontainers, Sabit Port Eşleme (Port Binding) ve Yerel Konteyner Yeniden Kullanımı (Reuse Mimarisi).
 
 ---
 
-### pom.xml — Ek Bağımlılıklar
+### 📦 pom.xml — Gelişmiş Entegrasyon Testi Bağımlılıkları
+
+Entegrasyon testlerinde gerçek konteynerları ve REST-Assured'ı kullanabilmek için projenin `pom.xml` dosyasına aşağıdaki bağımlılıklar eklenmiştir:
 
 ```xml
-<!-- Testcontainers core -->
+<!-- Testcontainers Çekirdek Bağımlılığı -->
 <dependency>
     <groupId>org.testcontainers</groupId>
     <artifactId>testcontainers</artifactId>
@@ -1082,7 +1077,7 @@ Bu branch, test piramidinin en üst noktasıdır. Gerçek (veya gerçeğe yakın
     <scope>test</scope>
 </dependency>
 
-<!-- PostgreSQL container -->
+<!-- PostgreSQL Konteyner Desteği -->
 <dependency>
     <groupId>org.testcontainers</groupId>
     <artifactId>postgresql</artifactId>
@@ -1090,7 +1085,7 @@ Bu branch, test piramidinin en üst noktasıdır. Gerçek (veya gerçeğe yakın
     <scope>test</scope>
 </dependency>
 
-<!-- JUnit 5 entegrasyonu -->
+<!-- JUnit 5 Testcontainers Entegrasyonu -->
 <dependency>
     <groupId>org.testcontainers</groupId>
     <artifactId>junit-jupiter</artifactId>
@@ -1098,125 +1093,89 @@ Bu branch, test piramidinin en üst noktasıdır. Gerçek (veya gerçeğe yakın
     <scope>test</scope>
 </dependency>
 
-<!-- H2 (test profili için) -->
+<!-- REST-Assured (Akıcı API Test İstemcisi) -->
 <dependency>
-    <groupId>com.h2database</groupId>
-    <artifactId>h2</artifactId>
+    <groupId>io.restassured</groupId>
+    <artifactId>rest-assured</artifactId>
+    <version>5.5.0</version>
     <scope>test</scope>
 </dependency>
 ```
 
 ---
 
-### Yaklaşım 1: `@SpringBootTest` + `@ActiveProfiles("test")` + `@Sql`
+### 💡 Yaklaşım 1: H2 In-Memory Veritabanı + `@Sql` Scriptleri (`TestRestTemplate`)
 
-#### `application-test.properties`
+Bu yaklaşım, harici bir Docker kurulumuna ihtiyaç duymadan, hızlı entegrasyon testleri yazmak için idealdir. Testler H2 bellek veritabanında koşar.
 
-```properties
-# H2 in-memory veritabanı — gerçek PostgreSQL gerekmez
-spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
-spring.datasource.driver-class-name=org.h2.Driver
-spring.datasource.username=test
-spring.datasource.password=password
+#### SQL Scriptleri ile State Yönetimi
+Veri izolasyonunu garanti etmek için testlerden önce ve sonra sql scriptleri çalıştırılır:
 
-spring.jpa.hibernate.ddl-auto=create-drop
-spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
-spring.jpa.show-sql=true
-```
-
-#### SQL Script'leri
-
-**`setup-test-users.sql`:**
+* **`setup-test-users.sql`:**
 ```sql
 INSERT INTO users (id, first_name, last_name, username, email, phone, age, active)
 VALUES (1, 'TestFirstName', 'TestLastName', 'testuser', 'testuser@gmail.com', '05360623971', 30, true);
 ```
 
-**`cleanup-test-users.sql`:**
+* **`cleanup-test-users.sql`:**
 ```sql
 DELETE FROM users;
 ```
 
-#### `UserApplicationIntegrationTest`
-
+#### `UserApplicationIntegrationTest.java`
 ```java
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("test") // application-test.properties'i yükle
+@ActiveProfiles("test") // application-test.properties dosyasını (H2) yükler
 public class UserApplicationIntegrationTest {
 
     @LocalServerPort
-    private int port; // Rastgele port — paralel testlerde çakışma olmaz
+    private int port; // Çakışmaları önlemek için rastgele port alınır
 
     @Autowired
-    private TestRestTemplate restTemplate; // Gerçek HTTP isteği gönderir
+    private TestRestTemplate restTemplate; // Spring'in yerleşik HTTP istemcisi
 
     @Autowired
     private UserRepository userRepository;
 
     @Test
-    @Sql(scripts = "/setup-test-users.sql",
-         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-    @Sql(scripts = "/cleanup-test-users.sql",
-         executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Sql(scripts = "/setup-test-users.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+    @Sql(scripts = "/cleanup-test-users.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     void shouldGetUserById_whenUserExists() {
-        // @Sql ile önceden id=1 kullanıcı eklendi
         String url = "http://localhost:" + port + "/api/user/1";
 
         ResponseEntity<UserResponse> response = restTemplate.getForEntity(url, UserResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getId()).isEqualTo(1L);
         assertThat(response.getBody().getUsername()).isEqualTo("testuser");
-        assertThat(response.getBody().getEmail()).isEqualTo("testuser@gmail.com");
-    }
-
-    @Test
-    @Sql(scripts = "/cleanup-test-users.sql",
-         executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
-    void shouldCreateUser_andSaveToDatabase() {
-        UserCreateRequest request = UserCreateRequest.builder()
-            .firstName("John").lastName("Doe").username("johndoe")
-            .email("john.doe@test.com").phone("05359702361").age(25).build();
-
-        String url = "http://localhost:" + port + "/api/user";
-
-        ResponseEntity<UserResponse> response = restTemplate.postForEntity(url, request, UserResponse.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getId()).isNotNull();
-        assertThat(response.getBody().getUsername()).isEqualTo("johndoe");
-
-        // Gerçekten veritabanına kaydedildi mi?
-        Optional<User> foundUser = userRepository.findById(response.getBody().getId());
-        assertThat(foundUser).isPresent();
     }
 }
 ```
 
 ---
 
-### Yaklaşım 2: Testcontainers ile Gerçek PostgreSQL
+### 🐳 Yaklaşım 2: Testcontainers (PostgreSQL) + `TestRestTemplate`
 
-#### `BaseContainerTest` — Shared Container Pattern
+Gerçek hayatta H2 veritabanı, PostgreSQL'e özgü native sorguları, veritabanı kısıtlamalarını (constraints) veya fonksiyonları desteklemez. Bu nedenle **Testcontainers** kullanarak testleri tamamen gerçek bir PostgreSQL veritabanında koştururuz.
+
+#### `BaseContainerTest.java` (Paylaşılan Konteyner Deseni)
+Konteyner başlatma maliyeti yüksek olduğu için her test sınıfında yeni konteyner açmak yerine, `static` blok içinde **Singleton** bir konteyner başlatırız:
 
 ```java
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class BaseContainerTest {
 
-    // static final → tüm test sınıflarında tek bir container (singleton)
     static final PostgreSQLContainer<?> POSTGRES_CONTAINER;
 
     static {
         POSTGRES_CONTAINER = new PostgreSQLContainer<>("postgres:14.23")
-            .withDatabaseName("test_db")
-            .withUsername("test_user")
-            .withPassword("test_password");
-        POSTGRES_CONTAINER.start(); // Container bir kez başlar
+                .withDatabaseName("test_db")
+                .withUsername("test_user")
+                .withPassword("test_password");
+        POSTGRES_CONTAINER.start();
     }
 
-    // @DynamicPropertySource: Container'ın dinamik port/URL'sini Spring'e bildir
+    // Konteynerın aldığı dinamik portu Spring Boot'un veritabanı ayarlarına enjekte eder
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES_CONTAINER::getJdbcUrl);
@@ -1227,12 +1186,8 @@ public abstract class BaseContainerTest {
 }
 ```
 
-> **Neden `static`?** Container'ı her test metodu için yeniden başlatmak çok maliyetlidir. `static final` ile singleton pattern uygulanır: container bir kez başlar, tüm testler biter, bir kez durur.
-
-#### `UserApplicationContainerTest`
-
+#### `UserApplicationContainerTest.java`
 ```java
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class UserApplicationContainerTest extends BaseContainerTest {
 
     @Autowired
@@ -1246,152 +1201,277 @@ public class UserApplicationContainerTest extends BaseContainerTest {
 
     @AfterEach
     void tearDown() {
-        userRepository.deleteAll(); // Her testten sonra temizle
+        userRepository.deleteAll(); // Her testten sonra veriyi temizler
     }
 
     @Test
     void shouldCreateUserAndPersistInPostgreSQL() {
-        assertTrue(POSTGRES_CONTAINER.isRunning()); // Container çalışıyor mu?
-
         UserCreateRequest request = UserCreateRequest.builder()
-            .firstName("burakcan").lastName("aksoy").username("burakcnaksy")
-            .email("aksoyburak808@gmail.com").phone("05350482740").age(24).build();
+                .firstName("burakcan").lastName("aksoy").username("burakcnaksy")
+                .email("aksoyburak808@gmail.com").phone("05350482740").age(24).build();
 
         ResponseEntity<UserResponse> response = restTemplate.postForEntity(
-            "http://localhost:" + port + "/api/user",
-            request,
-            UserResponse.class
-        );
+                "http://localhost:" + port + "/api/user", request, UserResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody().getId()).isNotNull();
 
-        // PostgreSQL'e gerçekten kaydedildi mi?
+        // Veritabanına gerçekten kaydedildi mi? (Doğrudan repository kontrolü)
         Optional<User> savedUser = userRepository.findById(response.getBody().getId());
         assertThat(savedUser).isPresent();
-    }
-
-    @Test
-    void shouldReturn400_whenCreateUserWithInvalidData() {
-        UserCreateRequest request = UserCreateRequest.builder()
-            .firstName("burakcan").lastName("aksoy").username("burakcnaksy")
-            .email("invalid-email-format") // Geçersiz email
-            .phone("05350482740").age(15).build();
-
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            "http://localhost:" + port + "/api/user",
-            request,
-            String.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(userRepository.count()).isEqualTo(0); // Hiçbir şey kaydedilmemeli
-    }
-
-    @Test
-    void shouldGetUserById_whenUserExists() {
-        // Doğrudan repository üzerinden kaydet
-        User user = User.builder()
-            .firstName("burakcan").lastName("aksoy").username("burakcnaksy")
-            .email("aksoyburak808@gmail.com").phone("05350482740").age(24).active(true).build();
-        User savedUser = userRepository.save(user);
-
-        ResponseEntity<UserResponse> response = restTemplate.getForEntity(
-            "http://localhost:" + port + "/api/user/" + savedUser.getId(),
-            UserResponse.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getId()).isEqualTo(savedUser.getId());
-        assertThat(response.getBody().getEmail()).isEqualTo("aksoyburak808@gmail.com");
-    }
-
-    @Test
-    void shouldDeleteUser_whenUserExists() {
-        User user = User.builder()
-            .firstName("john").lastName("doe").username("johndoe")
-            .email("john.doe@gmail.com").phone("05351112233").age(30).active(true).build();
-        User savedUser = userRepository.save(user);
-
-        ResponseEntity<Void> response = restTemplate.exchange(
-            "http://localhost:" + port + "/api/user/" + savedUser.getId(),
-            HttpMethod.DELETE,
-            null,
-            Void.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(userRepository.findById(savedUser.getId())).isEmpty();
     }
 }
 ```
 
 ---
 
-### İki Yaklaşımın Karşılaştırması
+### 🌟 Yaklaşım 3: REST-Assured + PostgreSQL + Reuse & Port Binding (Kurumsal Seviye)
 
-| Özellik | `@Sql` + H2 | Testcontainers + PostgreSQL |
-|---|---|---|
-| Hız | ⚡ Çok hızlı | 🐢 Container başlatma süresi |
-| Gerçekçilik | ⚠️ Orta (H2 ≠ PostgreSQL) | ✅ Yüksek (gerçek veritabanı) |
-| Kurulum | Basit | Docker gerekir |
-| Native SQL | Sınırlı | Tam destek |
-| CI/CD uyumu | Kolay | Docker daemon gerekir |
-| Önerilen kullanım | Hızlı geliştirme döngüsü | Pre-merge, CI pipeline |
+**REST-Assured**, REST API'lerini test etmek için endüstri standardı haline gelmiş, akıcı (fluent) ve BDD tarzı (`given-when-then`) yazımı benimseyen olağanüstü bir kütüphanedir. Bu yaklaşımda projemizi kurumsal seviyede iki büyük özellikle donattık:
+
+1. **Sabit Port Eşleme (Port Binding):** Docker konteynerını dışarıya sabit `15432` portu ile açarak yerel bilgisayarımızdaki veritabanı araçlarıyla (DataGrip, IntelliJ Database vb.) canlı bağlantı kurabilme yeteneği.
+2. **Konteyner Yeniden Kullanımı (Reuse Mimarisi):** Testler bittiğinde veritabanının yok edilmesini engelleyerek, sonraki test çalıştırmalarında konteynerı anında (sub-second) yeniden kullanabilme ve test sürelerini kısaltma.
+
+#### 🔧 Yerel Yapılandırma (`~/.testcontainers.properties`)
+Konteynerın test bittiğinde silinmesini önlemek ve Ryuk temizlik sidecar'ını kapatmak için kullanıcının ana dizinindeki özellik dosyasına şu ayarlar eklenir:
+```properties
+testcontainers.reuse.enable=true
+ryuk.disabled=true
+```
+
+#### 🚀 Gelişmiş `BaseContainerTest.java` (Sabit Port + Reuse)
+```java
+package com.burakcanaksoy.springboottdd.user;
+
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Ports;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public abstract class BaseContainerTest {
+
+    static final PostgreSQLContainer<?> POSTGRES_CONTAINER;
+
+    static {
+        POSTGRES_CONTAINER = new PostgreSQLContainer<>("postgres:14.23")
+                .withDatabaseName("test_db")
+                .withUsername("test_user")
+                .withPassword("test_password")
+                // Konteynerın 5432 iç portunu host makinenin sabit 15432 portuna bağlar
+                .withCreateContainerCmdModifier(cmd -> cmd.getHostConfig().withPortBindings(
+                        new PortBinding(Ports.Binding.bindPort(15432), new ExposedPort(5432))
+                ))
+                .withReuse(true); // JVM kapansa da container açık kalır
+        POSTGRES_CONTAINER.start();
+    }
+
+    @DynamicPropertySource
+    static void configureProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES_CONTAINER::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES_CONTAINER::getUsername);
+        registry.add("spring.datasource.password", POSTGRES_CONTAINER::getPassword);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+    }
+}
+```
+
+#### ✍️ `UserControllerTest.java` (Tip Güvenliği ve Negatif Test Stratejileri)
+
+Kurumsal projelerde **Happy Path** (başarılı senaryolar) kadar **olumsuz durumların** ve **validasyon kurallarının** test edilmesi kritik önem taşır. Ayrıca istek gövdelerinde asla kırılgan raw JSON stringleri (`""" ... """`) kullanılmamalı, her zaman tip güvenliği sağlayan Java Builder sınıfları tercih edilmelidir.
+
+```java
+package com.burakcanaksoy.springboottdd.user;
+
+import io.restassured.RestAssured;
+import io.restassured.http.ContentType;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.server.LocalServerPort;
+
+import static io.restassured.RestAssured.given;
+import static io.restassured.RestAssured.when;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+
+class UserControllerTest extends BaseContainerTest {
+
+    UserResponse response4;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    private static final String BASE_URL = "/api/user";
+
+    @LocalServerPort
+    private int port;
+
+    @BeforeEach
+    void setUp() {
+        userRepository.deleteAll(); // Her test öncesi veri izolasyonu
+
+        // Tip güvenliği sağlayan DTO Builder kullanımı
+        UserCreateRequest request4 = UserCreateRequest.builder()
+                .firstName("Emma").lastName("Wilson").username("emmawilson")
+                .email("emma@example.com").phone("05051234567").age(22).build();
+
+        response4 = userService.createUser(request4);
+
+        RestAssured.baseURI = "http://localhost";
+        RestAssured.port = this.port;
+    }
+
+    // 1. HAPPY PATH: Kullanıcı Ekleme
+    @Test
+    void shouldAddNewUser() {
+        UserCreateRequest newUserRequest = UserCreateRequest.builder()
+                .firstName("Zeynep").lastName("Kara").username("zeynepkara")
+                .email("zeynep@test.com").phone("05071234567").age(31).build();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(newUserRequest) // Jackson ile otomatik JSON serileştirme
+                .when()
+                .post(BASE_URL)
+                .then()
+                .statusCode(201)
+                .body("firstName", equalTo("Zeynep"))
+                .body("username", equalTo("zeynepkara"));
+    }
+
+    // 2. NEGATIF TEST: Spring MVC @Valid Kısıtlamaları (HTTP 400)
+    @Test
+    void shouldNotCreateUserWhenValidationFails() {
+        UserCreateRequest invalidRequest = UserCreateRequest.builder()
+                .firstName("")          // Boş olamaz
+                .lastName("Kara")
+                .username("zk")         // Boyut < 3 olamaz
+                .email("invalid-email") // E-posta formatı hatalı
+                .phone("12345")         // Telefon formatı hatalı
+                .age(15)                // Yaş < 18 olamaz
+                .build();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(invalidRequest)
+                .when()
+                .post(BASE_URL)
+                .then()
+                .statusCode(400)
+                .body("message", equalTo("Validation failed"))
+                // Global Exception Handler tarafından dönen map'in içindeki alanları teyit et
+                .body("validationErrors", hasKey("firstName"))
+                .body("validationErrors", hasKey("username"))
+                .body("validationErrors", hasKey("email"))
+                .body("validationErrors", hasKey("phone"))
+                .body("validationErrors", hasKey("age"));
+    }
+
+    // 3. NEGATIF TEST: Benzersiz Alan Kısıtlaması (Unique Constraint - HTTP 409)
+    @Test
+    void shouldNotCreateUserWhenEmailOrPhoneAlreadyExists() {
+        UserCreateRequest duplicateRequest = UserCreateRequest.builder()
+                .firstName("JohnDuplicate").lastName("Doe").username("john_dup")
+                .email("emma@example.com") // Zaten veritabanında kayıtlı
+                .phone("05399999999").age(30).build();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(duplicateRequest)
+                .when()
+                .post(BASE_URL)
+                .then()
+                .statusCode(409)
+                .body("error", equalTo("Conflict"))
+                .body("message", containsString("User already exists with email"));
+    }
+
+    // 4. NEGATIF TEST: Bulunamayan Kaynak Hatası (HTTP 404)
+    @Test
+    void shouldReturnNotFoundWhenUserDoesNotExist() {
+        Long nonExistentId = 999999L;
+
+        given()
+                .when()
+                .get(BASE_URL + "/{id}", nonExistentId)
+                .then()
+                .statusCode(404)
+                .body("error", equalTo("Not Found"))
+                .body("message", equalTo("User not found with id: " + nonExistentId));
+    }
+}
+```
 
 ---
 
-## Test Piramidi — Genel Bakış
+### 📊 API Test Araçları Karşılaştırma Matrisi
+
+Spring Boot ekosisteminde API doğrulaması için kullanılan üç ana aracın kıyaslaması:
+
+| Özellik | MockMvc | TestRestTemplate | REST-Assured |
+| :--- | :--- | :--- | :--- |
+| **Yüklenen Katman** | Sadece Web Katmanı (`@WebMvcTest`) | Tüm Katmanlar (`@SpringBootTest`) | Tüm Katmanlar (`@SpringBootTest`) |
+| **Ağ (Network) İhtiyacı** | ✗ Sunucu açılmaz, ağ trafiği yoktur. | ✓ Gerçek sunucu portu üzerinden HTTP istekleri. | ✓ Gerçek sunucu portu üzerinden HTTP istekleri. |
+| **Sözdizimi Stili** | `andExpect(jsonPath(...))` (Akıcı ama uzun) | `ResponseEntity` nesnesini Java Assertions ile doğrulama | **Given-When-Then** BDD stili (Son derece okunaklı) |
+| **Veritabanı Bağlantısı** | Servis katmanı mock'lanır, veritabanına erişilmez. | Gerçek veritabanına sorgular atılır. | Gerçek veritabanına sorgular atılır. |
+| **Kullanım Amacı** | Controller yönlendirme, filtre ve hızlı validasyon doğrulamaları. | Temel HTTP istek-yanıt doğrulamaları. | **Uçtan uca (E2E) entegrasyon senaryoları, güvenlik ve karmaşık veri doğrulamaları.** |
+
+---
+
+## 🗺️ Test Piramidi — Tüm Katmanların Entegrasyonu
+
+Spring Boot projemizde uyguladığımız yedi adımlık test mimarisinin piramit üzerindeki dağılımı şu şekildedir:
 
 ```
                     ▲
                    /|\
                   / | \
-                 /  |  \    @SpringBootTest
-                /   |   \   Testcontainers
-               / Entegrasyon\
+                 /  |  \    @SpringBootTest + Testcontainers (PostgreSQL)
+                /   |   \   REST-Assured E2E Testleri (Port: 15432, Reuse: ON)
+               / Entegrasyon\  -> [UserControllerTest]
               /───────────────\
              /                 \
-            /    Controller      \  @WebMvcTest
-           /     (MockMvc)        \  MockitoBean
+            /    Controller      \  @WebMvcTest + MockMvc
+           /     (MockMvc)        \  -> [UserControllerTest] (webmvc branch)
           /─────────────────────────\
          /                           \
         /       Service Katmanı       \  @ExtendWith(MockitoExtension)
-       /         (Mockito)             \  @Mock / @InjectMocks
+       /         (Mockito)             \  -> [UserServiceTest]
       /───────────────────────────────────\
      /                                     \
-    /       Repository Katmanı              \  @DataJpaTest
-   /         (@DataJpaTest)                  \  TestEntityManager
+    /       Repository Katmanı              \  @DataJpaTest + TestEntityManager + H2
+   /         (@DataJpaTest)                  \  -> [UserRepositoryTest]
   /───────────────────────────────────────────\
  /                                             \
-/          Unit Testler (Pure JUnit/AssertJ)    \
+/          Unit Testler (Pure JUnit/AssertJ)    \  Dış bağımlılıksız saf Java servisleri
 /─────────────────────────────────────────────────\
 ```
 
-| Katman | Annotation | Hız | Kapsam |
-|---|---|---|---|
-| Unit (servis) | `@ExtendWith(MockitoExtension)` | ⚡⚡⚡ | Tek sınıf |
-| Unit (repo) | `@DataJpaTest` | ⚡⚡ | JPA katmanı |
-| Controller | `@WebMvcTest` | ⚡⚡ | Web katmanı |
-| Entegrasyon | `@SpringBootTest` + H2 | ⚡ | Tüm katmanlar |
-| Container | `@SpringBootTest` + Testcontainers | 🐢 | Gerçek ortam |
+---
+
+## 🏁 Sonuç
+
+Bu eğitim serisi ve repo dalları (branches), Spring Boot projesinde test mimarisini **sıfırdan üretime** taşımak isteyen bir mühendis için eksiksiz bir yol haritasıdır:
+
+1. **`develop`** ile saf Java sınıflarında JUnit 5 assertion metodolojilerini oturtun.
+2. **`assertj`** ile testlerinizin okunabilirliğini insan dili seviyesine çıkarın.
+3. **`mock`** ile Mockito kütüphanesini kullanarak servis katmanını bağımlılıklardan izole edin.
+4. **`webmvc`** ile `@WebMvcTest` anotasyonunu kullanarak HTTP yönlendirmelerini, güvenlik filtrelerini ve validasyon kurallarını Tomcat açmadan hızlıca doğrulayın.
+5. **`data-jpa`** ile veritabanı sorgularınızı, custom JPQL ve Native SQL komutlarınızı H2 yardımıyla test edin.
+6. **`spring-boot-test`** ile piramidin en tepesine çıkın: **REST-Assured**, **Docker Testcontainers (PostgreSQL)**, **Sabit Port Eşleme** ve **Konteyner Yeniden Kullanımı (Reuse)** ile gerçek üretim ortamının birebir kopyası üzerinde sarsılmaz uçtan uca entegrasyon testleri yazın.
+
+Test yazmak bir lüks değil, uygulamanızın güvenle büyümesini sağlayan en güçlü çelik zırhtır. Keyifli kodlamalar ve bol "yeşil bar"lı testler dileriz! 🟢
 
 ---
 
-## Sonuç
+*Bu blog yazısı, [`spring-boot-tdd`](https://github.com/burakcnaksy0/spring-boot-tdd) reposunun tüm gelişim aşamaları incelenerek hazırlanmıştır. Kod örneklerinin tamamı projenin çalışan kaynak kodlarından derlenmiştir.*
 
-Bu proje, Spring Boot'ta test yazmayı sıfırdan öğrenmek için mükemmel bir yol haritası sunar:
-
-1. **`develop`** → JUnit 5'in tüm assertion'larını öğren
-2. **`assertj`** → Fluent, okunabilir assertion stili benimse
-3. **`mock`** → Mockito ile bağımlılıkları izole et
-4. **`webmvc`** → HTTP katmanını MockMvc ile test et
-5. **`data-jpa`** → Repository sorgularını H2 ile doğrula
-6. **`spring-boot-test`** → Uçtan uca entegrasyon ve container testleri yaz
-
-Her adım, gerçek dünya uygulamalarında kullanılan production-grade bir pattern'i temsil eder. Bu yol haritasını takip ederek, hem test yazma becerisini hem de Spring Boot'un derinliklerini kavramış olursun.
-
----
-
-*Bu blog yazısı, [`spring-boot-tdd`](https://github.com/burakcnaksy0/spring-boot-tdd) reposunun tüm branch'leri incelenerek hazırlanmıştır. Yazıdaki tüm kod örnekleri gerçek proje kaynak kodundan alınmıştır.*

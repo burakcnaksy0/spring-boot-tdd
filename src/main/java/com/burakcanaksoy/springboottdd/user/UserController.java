@@ -15,18 +15,18 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/all")
-    public ResponseEntity<List<UserResponse>> getAllUsers(){
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
         return new ResponseEntity<>(userService.getAllUsers(), HttpStatus.OK);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id){
-        return new ResponseEntity<>(userService.getUserById(id),HttpStatus.OK);
+    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+        return new ResponseEntity<>(userService.getUserById(id), HttpStatus.OK);
     }
 
     @PostMapping()
-    public ResponseEntity<UserResponse> createUser(@RequestBody @Valid UserCreateRequest request){
-        return new ResponseEntity<>(userService.createUser(request),HttpStatus.CREATED);
+    public ResponseEntity<UserResponse> createUser(@RequestBody @Valid UserCreateRequest request) {
+        return new ResponseEntity<>(userService.createUser(request), HttpStatus.CREATED);
     }
 
     @DeleteMapping("/{id}")
